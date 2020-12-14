@@ -4,8 +4,6 @@ import gym
 import numpy as np
 
 import rospy
-import actionlib
-import discretized_movement.msg
 from discretized_movement.msg import worldstate
 from SimpleDQN import SimpleDQN
 
@@ -44,6 +42,8 @@ def get_loc(obj: str):
 
 
 if __name__ == "__main__":
+    rospy.init_node("low_fidelity_rl_agent", anonymous=False)
+
     no_of_environmets = 1
 
     # Width of the grid (grid is 10,10. 1 Extra row and height for defining the boundary.)
@@ -60,11 +60,6 @@ if __name__ == "__main__":
         if CURRENT_WORLDSTATE is None:
             rospy.logwarn(
                 2, "Still haven't seen any worldstate information, will keep waiting...")
-
-    kinematics_client = actionlib.SimpleActionClient('simplified_kinematics', discretized_movement.msg.MoveAction)
-    kinematics_client.wait_for_server()
-    interation_client = actionlib.SimpleActionClient('simplified_interaction', discretized_movement.msg.InteractAction)
-    interation_client.wait_for_server()
 
     cube1_loc = get_loc('cube1')
     cube2_loc = get_loc('cube2')
@@ -119,36 +114,6 @@ if __name__ == "__main__":
 
         # act
         a = agent.process_step(obs, True)
-
-        """
-        example methods of interacting, since I'm not
-        sure how the agent step output is to be handled
-        """
-        # setting up message:
-        # move_goal = discretized_movement.msg.MoveGoal()
-        #
-        # then picking one of the movement options:
-        # move_goal.move.direction = move_goal.move.UP
-        # move_goal.move.direction = move_goal.move.DOWN
-        # move_goal.move.direction = move_goal.move.LEFT
-        # move_goal.move.direction = move_goal.move.RIGHT
-        #
-        # then sending that goal:
-        # kinematics_client.send_goal_and_wait(move_goal)
-        #
-        # then getting the result, which is updated based off of the action.
-        # This is an alternate method of getting the info of the callback, though this may be easier
-        # to integrate and less likely to be buggy (since returns the worldstate as a result
-        # of the action, not at a regular interval):
-        # result = kinematics_client.get_result()
-
-        # as above, but for interaction goals.
-        #interact_goal = discretized_movement.msg.InteractGoal()
-        #interact_goal.action.interact = interact_goal.action.GRAB
-        #interact_goal.action.interact = interact_goal.action.RELEASE
-        #interation_client.send_goal_and_wait(interact_goal)
-        #result = interation_client.get_result()
-
 
         new_obs, reward, done, info = env.step(a)
 
