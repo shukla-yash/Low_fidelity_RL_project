@@ -3,6 +3,9 @@
 
 import math
 
+import actionlib
+import discretized_movement.msg
+
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
@@ -81,6 +84,13 @@ class NovelGridworldV0Env(gym.Env):
         self.current_pickup_item = 0 # 0 for cube1, 1 for cube2
         self.dropped_items = 0
         self.target_dropped_items = self.items_quantity['cube1'] + self.items_quantity['cube2']
+
+        self.kinematics_client = actionlib.SimpleActionClient('simplified_kinematics', discretized_movement.msg.MoveAction)
+        self.kinematics_client.wait_for_server()
+        self.interation_client = actionlib.SimpleActionClient('simplified_interaction', discretized_movement.msg.InteractAction)
+        self.interation_client.wait_for_server()
+
+
 
     def reset(self):
 
@@ -208,6 +218,10 @@ class NovelGridworldV0Env(gym.Env):
         """
         Actions: {0: 'Forward', 1: 'Left', 2: 'Right', 3: 'Break'}
         """
+        move_goal_set = False
+        move_goal = discretized_movement.msg.MoveGoal()
+        interact_goal_set = False
+        interact_goal = discretized_movement.msg.InteractGoal()
 
         self.last_action = action
         r, c = self.agent_location
@@ -217,27 +231,32 @@ class NovelGridworldV0Env(gym.Env):
         # Forward
         if action == 0:
             if self.agent_facing_str == 'NORTH' and self.map[r - 1][c] == 0:
+                move_goal.move.direction = move_goal.move.UP
                 self.agent_location = (r - 1, c)
         # Left
         elif action == 1:
             if self.agent_facing_str == 'NORTH' and self.map[r][c-1] == 0:
                 self.agent_location = (r, c-1)
+                move_goal.move.direction = move_goal.move.LEFT
 
         # Right
         elif action == 2:
             if self.agent_facing_str == 'NORTH' and self.map[r][c+1] == 0:
                 self.agent_location = (r, c+1)
+                move_goal.move.direction = move_goal.move.RIGHT
 
         # Backward
         elif action == 3:
             if self.agent_facing_str == 'NORTH' and self.map[r+1][c] == 0:
                 self.agent_location = (r+1, c)
+                move_goal.move.direction = move_goal.move.DOWN
 
 
         # PickUp
         elif action == 4:
             self.update_block_in_front()
             # If block in front is not air and wall, place the block in front in inventory
+            interact_goal.action.interact = interact_goal.action.GRAB
             if self.block_in_front_str == 'cube1' or self.block_in_front_str == 'cube2':
                 block_r, block_c = self.block_in_front_location
                 self.map[block_r][block_c] = 0
@@ -251,6 +270,7 @@ class NovelGridworldV0Env(gym.Env):
         # Release
         elif action == 5:
             self.update_block_in_front()
+            interact_goal.action.interact = interact_goal.action.RELEASE
             if self.block_in_front_str == 'crafting_table':
                 if self.current_pickup_state == 1:
                     reward = self.reward_break
@@ -258,10 +278,21 @@ class NovelGridworldV0Env(gym.Env):
                     self.current_pickup_state = 0
                     self.current_pickup_item = 0
 
+        # This isn't accessed since it seems like it's redundant information
+        # (you're already tracking it in the gridworld), but you can get what the
+        # robot perceives the world to be this way. Useful if it ever fails to
+        # grab, release, or move properly. You can get the worldstate or success true/fail from it.
+        result = None
+        if move_goal_set:
+            self.kinematics_client.send_goal_and_wait(move_goal)
+            result = self.kinematics_client.get_result()
+        if interact_goal_set:
+            self.interation_client.send_goal_and_wait(interact_goal)
+            result = self.interation_client.get_result()
+
         # Update after each step
         observation = self.get_observation()
         self.update_block_in_front()
-
         if self.goal_env == 0: # If the goal is navigation
             if not self.block_in_front_id == 0 and not self.block_in_front_str == 'wall':
                 done = True
