@@ -118,20 +118,20 @@ class NovelGridworldV0Env(gym.Env):
             for c in range(2, self.map_height - 2):
                 self.available_locations.append((r, c))
 
-        r_cube1 = self.items_loc['cube1'][0]
-        c_cube1 = self.items_loc['cube1'][1]
+        r_cube1 = int(self.items_loc['cube1'][0])
+        c_cube1 = int(self.items_loc['cube1'][1])
         self.map[r_cube1][c_cube1] = self.items_id['cube1']
 
-        r_cube2 = self.items_loc['cube2'][0]
-        c_cube2 = self.items_loc['cube2'][1]
+        r_cube2 = int(self.items_loc['cube2'][0])
+        c_cube2 = int(self.items_loc['cube2'][1])
         self.map[r_cube2][c_cube2] = self.items_id['cube2']
 
-        r_crafting_table = self.items_loc['crafting_table'][0]
-        c_crafting_table = self.items_loc['crafting_table'][1]
+        r_crafting_table = int(self.items_loc['crafting_table'][0])
+        c_crafting_table = int(self.items_loc['crafting_table'][1])
         self.map[r_crafting_table][c_crafting_table] = self.items_id['crafting_table']
 
-        r_agent = self.agent_loc[0]
-        c_agent = self.agent_loc[1]
+        r_agent = int(self.agent_loc[0])
+        c_agent = int(self.agent_loc[1])
         self.agent_location = (r_agent, c_agent)
 
         # Agent facing direction
@@ -231,24 +231,28 @@ class NovelGridworldV0Env(gym.Env):
         # Forward
         if action == 0:
             if self.agent_facing_str == 'NORTH' and self.map[r - 1][c] == 0:
-                move_goal.move.direction = move_goal.move.UP
                 self.agent_location = (r - 1, c)
+                move_goal_set = True
+                move_goal.move.direction = move_goal.move.UP
         # Left
         elif action == 1:
             if self.agent_facing_str == 'NORTH' and self.map[r][c-1] == 0:
                 self.agent_location = (r, c-1)
+                move_goal_set = True
                 move_goal.move.direction = move_goal.move.LEFT
 
         # Right
         elif action == 2:
             if self.agent_facing_str == 'NORTH' and self.map[r][c+1] == 0:
                 self.agent_location = (r, c+1)
+                move_goal_set = True
                 move_goal.move.direction = move_goal.move.RIGHT
 
         # Backward
         elif action == 3:
             if self.agent_facing_str == 'NORTH' and self.map[r+1][c] == 0:
                 self.agent_location = (r+1, c)
+                move_goal_set = True
                 move_goal.move.direction = move_goal.move.DOWN
 
 
@@ -257,6 +261,8 @@ class NovelGridworldV0Env(gym.Env):
             self.update_block_in_front()
             # If block in front is not air and wall, place the block in front in inventory
             interact_goal.action.interact = interact_goal.action.GRAB
+            interact_goal_set = True
+
             if self.block_in_front_str == 'cube1' or self.block_in_front_str == 'cube2':
                 block_r, block_c = self.block_in_front_location
                 self.map[block_r][block_c] = 0
@@ -271,6 +277,8 @@ class NovelGridworldV0Env(gym.Env):
         elif action == 5:
             self.update_block_in_front()
             interact_goal.action.interact = interact_goal.action.RELEASE
+            interact_goal_set = True
+
             if self.block_in_front_str == 'crafting_table':
                 if self.current_pickup_state == 1:
                     reward = self.reward_break
@@ -287,8 +295,17 @@ class NovelGridworldV0Env(gym.Env):
             self.kinematics_client.send_goal_and_wait(move_goal)
             result = self.kinematics_client.get_result()
         if interact_goal_set:
+            # The agent needs to be in front of an object on the same plane, but the robot needs to be on the object
+            # on a different plane... So we go forward, then request the interaction, then return to where we were a
+            # moment earlier.
+            move_goal.move.direction = move_goal.move.UP
+            self.kinematics_client.send_goal_and_wait(move_goal)
+
             self.interation_client.send_goal_and_wait(interact_goal)
             result = self.interation_client.get_result()
+
+            move_goal.move.direction = move_goal.move.DOWN
+            self.kinematics_client.send_goal_and_wait(move_goal)
 
         # Update after each step
         observation = self.get_observation()
@@ -325,6 +342,7 @@ class NovelGridworldV0Env(gym.Env):
 
 
         if self.agent_facing_str == 'NORTH':
+            print(self.map)
             self.block_in_front_id = self.map[r - 1][c]
             self.block_in_front_location = (r - 1, c)
 
