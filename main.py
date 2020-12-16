@@ -7,32 +7,31 @@ import rospy
 from discretized_movement.msg import worldstate
 from SimpleDQN import SimpleDQN
 
-# import gym_novel_gridworlds
-# import sys
-# sys.path.append('gym_novel_gridworlds/envs')
-# from novel_gridworld_v0_env import NovelGridworldV0Env
-# import matplotlib.pyplot as plt
+import gym_novel_gridworlds
+import sys
+sys.path.append('gym_novel_gridworlds/envs')
+from novel_gridworld_v0_env import NovelGridworldV0Env
+import matplotlib.pyplot as plt
 
 CURRENT_WORLDSTATE: worldstate
 CURRENT_WORLDSTATE = worldstate()
-CURRENT_WORLDSTATE_LAST_SET: float
-CURRENT_WORLDSTATE_LAST_SET = 0
+CURRENT_WORLDSTATE_SET = False
 
 
 def world_state_callback(msg: worldstate):
     global CURRENT_WORLDSTATE
     CURRENT_WORLDSTATE = msg
-    global CURRENT_WORLDSTATE_LAST_SET
-    CURRENT_WORLDSTATE_LAST_SET = rospy.get_time()
+    global CURRENT_WORLDSTATE_SET
+    CURRENT_WORLDSTATE_SET = True
 
 
 def get_loc(obj: str):
+    while not CURRENT_WORLDSTATE_SET:
+        rospy.loginfo_throttle(1, "Waiting for world state info...")
     if obj == 'agent':
         return [CURRENT_WORLDSTATE.robot_state.x,
                 CURRENT_WORLDSTATE.robot_state.y]
 
-    if CURRENT_WORLDSTATE_LAST_SET == 0 or CURRENT_WORLDSTATE is None:
-        return [0, 0]
     for n in range(0, CURRENT_WORLDSTATE.observed_objects.__len__()):
         if CURRENT_WORLDSTATE.observed_objects[n].name == obj:
             return [CURRENT_WORLDSTATE.observed_objects[n].x,
@@ -43,6 +42,7 @@ def get_loc(obj: str):
 
 if __name__ == "__main__":
     rospy.init_node("low_fidelity_rl_agent", anonymous=False)
+    rospy.Subscriber("world_state_status", worldstate, world_state_callback)
 
     no_of_environmets = 1
 
@@ -53,13 +53,6 @@ if __name__ == "__main__":
     no_cube2 = 1  # No of cube2 in the env
     crafting_table = 1  # No of crafting tables in the env
     type_of_env = 2  # The goal task. Changing this param to 0 or 1 would make the goal intermediate tasks of the curriculum
-
-    rate = rospy.Rate(.5)
-    while CURRENT_WORLDSTATE is None:
-        rate.sleep()
-        if CURRENT_WORLDSTATE is None:
-            rospy.logwarn(
-                2, "Still haven't seen any worldstate information, will keep waiting...")
 
     cube1_loc = get_loc('cube1')
     cube2_loc = get_loc('cube2')
@@ -76,7 +69,8 @@ if __name__ == "__main__":
     GAMMA = 0.95
     LEARNING_RATE = 1e-3
     DECAY_RATE = 0.99
-    MAX_EPSILON = 0.1
+    #MAX_EPSILON = 0.1
+    MAX_EPSILON = 0.0
     random_seed = 1
 
     final_status = True
