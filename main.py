@@ -42,7 +42,7 @@ def get_loc(obj: str):
 
 if __name__ == "__main__":
     rospy.init_node("low_fidelity_rl_agent", anonymous=False)
-    rospy.Subscriber("world_state_status", worldstate, world_state_callback)
+    rospy.Subscriber("world_state_status_agent", worldstate, world_state_callback)
 
     no_of_environmets = 1
 
@@ -150,6 +150,8 @@ if __name__ == "__main__":
             env.render()
             reward_sum = 0
 
+            env.interact()
+
             # quit after some number of episodes
-            if episode > 50:
-                break
+            #if episode > 50:
+            break

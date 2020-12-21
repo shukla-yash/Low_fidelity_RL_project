@@ -214,6 +214,13 @@ class NovelGridworldV0Env(gym.Env):
         # time.sleep(5.0)2
         return np.array(observation)
 
+    def interact(self):
+        ''' Rather than just end the episode, we try to "interact" with the target in some way.  '''
+        interact_goal = discretized_movement.msg.InteractGoal()
+        interact_goal.action.interact = interact_goal.action.GRAB
+        self.interation_client.send_goal_and_wait(interact_goal)
+        result = self.interation_client.get_result()
+
     def step(self, action):
         """
         Actions: {0: 'Forward', 1: 'Left', 2: 'Right', 3: 'Break'}
